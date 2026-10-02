@@ -64,6 +64,13 @@ type Business struct {
 
 // NewBusiness constructs a home business API for use.
 func NewBusiness(log *logger.Logger, userBus userbus.ExtBusiness, delegate *delegate.Delegate, storer Storer, extensions ...Extension) ExtBusiness {
+	b := newBusiness(log, userBus, delegate, storer, extensions...)
+	b.registerDelegateFunctions()
+
+	return b.withExtensions()
+}
+
+func newBusiness(log *logger.Logger, userBus userbus.ExtBusiness, delegate *delegate.Delegate, storer Storer, extensions ...Extension) *Business {
 	b := Business{
 		log:        log,
 		userBus:    userBus,
@@ -72,11 +79,13 @@ func NewBusiness(log *logger.Logger, userBus userbus.ExtBusiness, delegate *dele
 		extensions: extensions,
 	}
 
-	b.registerDelegateFunctions()
+	return &b
+}
 
-	extBus := ExtBusiness(&b)
+func (b *Business) withExtensions() ExtBusiness {
+	extBus := ExtBusiness(b)
 
-	for _, ext := range slices.Backward(extensions) {
+	for _, ext := range slices.Backward(b.extensions) {
 
 		if ext != nil {
 			extBus = ext(extBus)
@@ -99,9 +108,9 @@ func (b *Business) NewWithTx(tx sqldb.CommitRollbacker) (ExtBusiness, error) {
 		return nil, err
 	}
 
-	nb := NewBusiness(b.log, userBus, b.delegate, storer, b.extensions...)
+	nb := newBusiness(b.log, userBus, b.delegate, storer, b.extensions...)
 
-	return nb, nil
+	return nb.withExtensions(), nil
 }
 
 // Create adds a new home to the system.
